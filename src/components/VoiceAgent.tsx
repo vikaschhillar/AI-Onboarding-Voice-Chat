@@ -9,7 +9,8 @@ const prompts = [
 ];
 
 const synth = window.speechSynthesis;
-const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+const SpeechRecognition =
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
 export const VoiceAgent: React.FC = () => {
   const [index, setIndex] = useState(-1);
@@ -19,23 +20,12 @@ export const VoiceAgent: React.FC = () => {
   const recognitionRef = useRef<any>(null);
   const waitingForResultRef = useRef(false);
   const currentIndexRef = useRef(index);
-
-  // Keep transcript and answers refs for saving latest state
   const transcriptRef = useRef<string[]>([]);
   const answersRef = useRef<Record<string, string>>({});
 
-  // Sync refs on state update
-  useEffect(() => {
-    currentIndexRef.current = index;
-  }, [index]);
-
-  useEffect(() => {
-    transcriptRef.current = transcript;
-  }, [transcript]);
-
-  useEffect(() => {
-    answersRef.current = answers;
-  }, [answers]);
+  useEffect(() => { currentIndexRef.current = index; }, [index]);
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+  useEffect(() => { answersRef.current = answers; }, [answers]);
 
   useEffect(() => {
     if (!SpeechRecognition) {
@@ -51,9 +41,8 @@ export const VoiceAgent: React.FC = () => {
     recognition.onresult = (event: any) => {
       waitingForResultRef.current = false;
       const text = event.results[0][0].transcript;
-      console.log("Recognition result:", text);
 
-      setTranscript((prev) => {
+      setTranscript(prev => {
         const updated = [...prev, `User: ${text}`];
         transcriptRef.current = updated;
         return updated;
@@ -63,12 +52,9 @@ export const VoiceAgent: React.FC = () => {
     };
 
     recognition.onend = () => {
-      console.log("Recognition ended");
       if (waitingForResultRef.current) {
-        try {
-          recognition.start();
-        } catch (err) {
-          console.warn("Failed to restart recognition:", err);
+        try { recognition.start(); } catch (err) {
+          console.warn("Restart failed:", err);
         }
       }
     };
@@ -84,58 +70,38 @@ export const VoiceAgent: React.FC = () => {
   const speak = (text: string): Promise<void> => {
     return new Promise((resolve) => {
       if (!synth) {
-        console.warn("Speech synthesis not supported");
         resolve();
         return;
       }
-
       synth.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-
-      utterance.onstart = () => console.log("Speech synthesis started");
-      utterance.onend = () => {
-        console.log("Speech synthesis ended");
-        resolve();
-      };
-      utterance.onerror = (e) => {
-        console.error("Speech synthesis error:", e.error);
-        resolve();
-      };
-
+      utterance.onend = resolve;
+      utterance.onerror = resolve;
       synth.speak(utterance);
     });
   };
 
   const startRecognition = () => {
-    if (!recognitionRef.current) {
-      console.warn("No recognition instance available");
-      return;
-    }
+    if (!recognitionRef.current) return;
     try {
       waitingForResultRef.current = true;
       recognitionRef.current.start();
-      console.log("Recognition requested to start");
     } catch (err) {
       console.error("Recognition start failed:", err);
     }
   };
 
   const handleUserAnswer = async (answer: string, currentIndex: number) => {
-    console.log(`Answer received for question ${currentIndex}: ${answer}`);
-  
-    if (currentIndex < 0 || currentIndex >= prompts.length) {
-      return;
-    }
-  
-    // Save answer mapping question → answer
-    setAnswers((prev) => {
+    if (currentIndex < 0 || currentIndex >= prompts.length) return;
+
+    setAnswers(prev => {
       const updated = { ...prev, [prompts[currentIndex]]: answer };
       answersRef.current = updated;
       return updated;
     });
-  
+
+    // Trigger backend company validation only for the first question
     if (currentIndex === 0) {
-      // Industry validation, async update answers with extra keys
       try {
         const response = await fetch("http://localhost:4567/api/validate-industry", {
           method: "POST",
@@ -143,11 +109,11 @@ export const VoiceAgent: React.FC = () => {
           body: JSON.stringify({ company: answer }),
         });
         const data = await response.json();
-        setAnswers((prev) => {
+        setAnswers(prev => {
           const updated = {
             ...prev,
             "Industry Confirmed": data.industryMatch ? "Yes" : "No",
-            "Company Overview": data.companyOverview || "",
+            "Company Overview": data.companyOverview,
           };
           answersRef.current = updated;
           return updated;
@@ -156,16 +122,14 @@ export const VoiceAgent: React.FC = () => {
         console.error("Industry validation failed", e);
       }
     }
-  
+
     const nextIndex = currentIndex + 1;
-  
     if (nextIndex < prompts.length) {
       setIndex(nextIndex);
       setCurrentPrompt(prompts[nextIndex]);
       await speak(prompts[nextIndex]);
       startRecognition();
     } else {
-      // VERY IMPORTANT: Wait a tick so last setAnswers finishes before saving
       setTimeout(() => {
         setIndex(-1);
         setCurrentPrompt("");
@@ -174,15 +138,13 @@ export const VoiceAgent: React.FC = () => {
       }, 100);
     }
   };
-  
+
   const confirmAndGenerateReport = async () => {
     const confirmed = window.confirm("Do you want to submit the info?");
-    if (confirmed) {
-      await saveToFile();
-    }
+    if (confirmed) await saveToFile();
   };
 
-const saveToFile = async () => {
+  const saveToFile = async () => {
     const answers = answersRef.current;
     const transcript = transcriptRef.current.join("\n");
   
@@ -200,15 +162,12 @@ const saveToFile = async () => {
     try {
       const response = await fetch("http://localhost:4567/api/report", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-  
       const data = await response.json();
       alert("Report saved successfully!");
-      console.log("Report response:", data);
+      console.log("LLM Summary:", data.report.llmSummary);
     } catch (error) {
       console.error("Error saving report:", error);
       alert("Failed to save report.");

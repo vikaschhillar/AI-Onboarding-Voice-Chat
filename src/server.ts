@@ -1,21 +1,101 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { OpenAI } from 'openai';
+import dotenv from 'dotenv';
+dotenv.config();
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+console.log('OpenAI Key starts with:', process.env.OPENAI_API_KEY?.slice(0, 5));  // Safe preview
+
 
 const app = express();
-const port = 3002;
-
+app.use(cors());
 app.use(express.json());
 
-// Enable CORS for all origins (for development)
-app.use(cors());
-
-// Endpoint to validate if a company is in the food industry
-app.get('/api/health', (req, res) => {
+app.post('/api/validate-industry', (req, res) => {
+  const { company } = req.body;
+  const foodCompanies = ['Nestle', 'PepsiCo', 'Coca-Cola', 'ABCD'];
+  const match = foodCompanies.includes(company);
   res.json({
-    status: 'ok',
+    industryMatch: match,
+    companyOverview: match ? `Overview of ${company}` : 'Generic company',
   });
 });
 
-app.listen(port, () => {
-  console.log(`API running at http://localhost:${port}`);
+app.get('/api/ping', (req, res) => {
+  res.json({ message: 'pong', timestamp: new Date().toISOString() });
 });
+
+// Properly setup __dirname in ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.post('/api/report', async (req, res) => {
+  const {
+    userName,
+    companyName,
+    role,
+    objective,
+    idealOutput,
+    industryConfirmed,
+    companyOverview,
+    transcript,
+  } = req.body;
+
+  const report = {
+    userName,
+    companyName,
+    role,
+    objective,
+    industryConfirmed,
+    idealOutput,
+    companyOverview,
+  };
+
+  const prompt = `You are generating a professional onboarding summary for a voice interview.
+
+User Info:
+- Name: ${userName}
+- Company: ${companyName}
+- Role: ${role}
+- Objective: ${objective}
+- Ideal Output: ${idealOutput}
+- Industry Confirmed: ${industryConfirmed}
+- Company Overview: ${companyOverview}
+
+Transcript:
+${transcript}
+
+Generate a clear and concise summary for internal documentation or a client report.`;
+
+  let llmSummary = '';
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+    });
+    llmSummary = completion.choices[0].message.content || '';
+  } catch (err) {
+    console.error('OpenAI summarization failed:', err);
+    llmSummary = '[LLM summary unavailable]';
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const reportDir = path.join(__dirname, 'reports');
+  const reportPath = path.join(reportDir, `report-${timestamp}.json`);
+  const transcriptPath = path.join(reportDir, `transcript-${timestamp}.txt`);
+
+  if (!fs.existsSync(reportDir)) {
+    fs.mkdirSync(reportDir, { recursive: true });
+  }
+
+  fs.writeFileSync(reportPath, JSON.stringify({ ...report, llmSummary }, null, 2));
+  fs.writeFileSync(transcriptPath, transcript || '');
+
+  res.json({ message: 'Report saved', report: { ...report, llmSummary } });
+});
+
+app.listen(4567, () => console.log('Mock API running on port 4567'));

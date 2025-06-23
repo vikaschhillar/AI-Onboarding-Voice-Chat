@@ -298,7 +298,7 @@ export const VoiceAgent: React.FC = () => {
             <div className="mx-6 mt-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-center">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500 mr-3"></div>
-                <span className="text-blue-800 font-medium">Analyzing company data...</span>
+                <span className="text-blue-800 font-medium">Collecting Company News data with news API and Summarize with openAI...</span>
               </div>
             </div>
           )}

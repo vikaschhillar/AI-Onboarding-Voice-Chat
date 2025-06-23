@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-
-const prompts = [
-  "What company do you work for?",
-  "What's your role?",
-  "What are you hoping to achieve with your research?",
-  "Is your company in the food and beverage industry?",
-  "What would the ideal output look like for you? eg) powerpoint",
-];
+import { PROMPTS, VAGUE_ANSWERS } from "../constants/voiceAgent";
+import {
+  fetchCompanyNews,
+  validateIndustry,
+  fetchCompanyDetails,
+  saveReport
+} from "../api/api";
 
 const synth = window.speechSynthesis;
 const SpeechRecognition =
@@ -106,28 +105,15 @@ export const VoiceAgent: React.FC = () => {
     }
   };
 
-  const vagueAnswers = [
-    "i don't know",
-    "not sure",
-    "maybe",
-    "i guess",
-    "no idea",
-    "don't know",
-    "nothing",
-    "none",
-    "no",
-    "n/a",
-  ];
-
   const isAnswerVague = (answer: string): boolean => {
     const trimmed = answer.trim().toLowerCase();
     if (trimmed.length < 3) return true;
-    if (vagueAnswers.includes(trimmed)) return true;
+    if (VAGUE_ANSWERS.includes(trimmed)) return true;
     return false;
   };
 
   const handleUserAnswer = async (answer: string, currentIndex: number) => {
-    if (currentIndex < 0 || currentIndex >= prompts.length) return;
+    if (currentIndex < 0 || currentIndex >= PROMPTS.length) return;
 
     if (isAnswerVague(answer)) {
       const clarification = "Could you please provide more details?";
@@ -138,7 +124,7 @@ export const VoiceAgent: React.FC = () => {
     }
 
     setAnswers((prev) => {
-      const updated = { ...prev, [prompts[currentIndex]]: answer };
+      const updated = { ...prev, [PROMPTS[currentIndex]]: answer };
       answersRef.current = updated;
       return updated;
     });
@@ -146,12 +132,7 @@ export const VoiceAgent: React.FC = () => {
     if (currentIndex === 0) {
       setLoading(true);
       try {
-        const newsResponse = await fetch("http://localhost:4567/api/company-news", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company: answer }),
-        });
-        const newsData = await newsResponse.json();
+        const newsData = await fetchCompanyNews(answer);
 
         setAnswers((prev) => ({
           ...prev,
@@ -160,19 +141,9 @@ export const VoiceAgent: React.FC = () => {
             .join("; ") || "No recent news found.",
         }));
 
-        const response = await fetch("http://localhost:4567/api/validate-industry", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company: answer }),
-        });
-        const data = await response.json();
+        const data = await validateIndustry(answer);
 
-        const detailsResponse = await fetch("http://localhost:4567/api/company-details", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company: answer }),
-        });
-        const detailsData = await detailsResponse.json();
+        const detailsData = await fetchCompanyDetails(answer);
 
         setAnswers((prev) => {
           const updated = {
@@ -192,11 +163,11 @@ export const VoiceAgent: React.FC = () => {
     }
 
     const nextIndex = currentIndex + 1;
-    if (nextIndex < prompts.length) {
+    if (nextIndex < PROMPTS.length) {
       setIndex(nextIndex);
-      setCurrentPrompt(prompts[nextIndex]);
+      setCurrentPrompt(PROMPTS[nextIndex]);
       setInputValue("");
-      await speak(prompts[nextIndex]);
+      await speak(PROMPTS[nextIndex]);
       if (useVoice) startRecognition();
     } else {
       setTimeout(() => {
@@ -216,8 +187,8 @@ export const VoiceAgent: React.FC = () => {
 
   const handleEditAnswer = (i: number) => {
     setIndex(i);
-    setCurrentPrompt(prompts[i]);
-    setInputValue(answers[prompts[i]] || "");
+    setCurrentPrompt(PROMPTS[i]);
+    setInputValue(answers[PROMPTS[i]] || "");
     if (useVoice) {
       recognitionRef.current?.stop();
       waitingForResultRef.current = false;
@@ -248,12 +219,8 @@ export const VoiceAgent: React.FC = () => {
     };
 
     try {
-      const response = await fetch("http://localhost:4567/api/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
+      const data = await saveReport(payload);
+
       alert("Report saved successfully!");
       console.log("LLM Summary:", data.report.llmSummary);
     } catch (error) {
@@ -266,14 +233,14 @@ export const VoiceAgent: React.FC = () => {
 
   const startConversation = async () => {
     setIndex(0);
-    setCurrentPrompt(prompts[0]);
+    setCurrentPrompt(PROMPTS[0]);
     setInputValue("");
-    await speak(prompts[0]);
+    await speak(PROMPTS[0]);
     if (useVoice) startRecognition();
   };
 
-  const progress = index >= 0 ? ((index + 1) / prompts.length) * 100 : 0;
-  const completedAnswers = Object.keys(answers).filter(key => prompts.includes(key)).length;
+  const progress = index >= 0 ? ((index + 1) / PROMPTS.length) * 100 : 0;
+  const completedAnswers = Object.keys(answers).filter(key => PROMPTS.includes(key)).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
@@ -296,7 +263,7 @@ export const VoiceAgent: React.FC = () => {
           <div className="p-6 border-b border-gray-100">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-gray-700">Interview Progress</span>
-              <span className="text-sm font-bold text-purple-600">{completedAnswers}/{prompts.length}</span>
+              <span className="text-sm font-bold text-purple-600">{completedAnswers}/{PROMPTS.length}</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
@@ -370,7 +337,7 @@ export const VoiceAgent: React.FC = () => {
                     <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">
                       {index + 1}
                     </div>
-                    <span className="text-sm text-gray-500 font-medium">Question {index + 1} of {prompts.length}</span>
+                    <span className="text-sm text-gray-500 font-medium">Question {index + 1} of {PROMPTS.length}</span>
                   </div>
                   <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 border border-blue-100">
                     <p className="text-xl font-medium text-gray-800">{currentPrompt}</p>
@@ -449,7 +416,7 @@ export const VoiceAgent: React.FC = () => {
             <div className="border-t border-gray-100 p-6">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Previous Answers (click to edit):</h3>
               <div className="flex flex-wrap gap-2">
-                {prompts.map((q, i) => {
+                {PROMPTS.map((q, i) => {
                   if (answers[q]) {
                     return (
                       <button

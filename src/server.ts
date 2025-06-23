@@ -14,55 +14,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// for streaming, its not working at the moment
-
-// app.post("/api/stream-answer", async (req, res) => {
-//   const { prompt } = req.body;
-
-//   const response = await fetch("https://api.openai.com/v1/chat/completions", {
-//     method: "POST",
-//     headers: {
-//       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-//       "Content-Type": "application/json",
-//     },
-//     body: JSON.stringify({
-//       model: "gpt-4", // or gpt-3.5-turbo
-//       stream: true,
-//       messages: [{ role: "user", content: prompt }],
-//     }),
-//   });
-
-//   res.setHeader("Content-Type", "text/event-stream");
-//   res.setHeader("Cache-Control", "no-cache");
-//   res.setHeader("Connection", "keep-alive");
-
-//   for await (const chunk of response.body) {
-//     const payload = chunk.toString();
-//     const lines = payload.split("\n").filter(Boolean);
-
-//     for (const line of lines) {
-//       if (line.startsWith("data: ")) {
-//         const data = line.replace("data: ", "");
-//         if (data === "[DONE]") {
-//           res.write("event: done\ndata: done\n\n");
-//           res.end();
-//           return;
-//         }
-
-//         try {
-//           const parsed = JSON.parse(data);
-//           const content = parsed.choices[0]?.delta?.content;
-//           if (content) {
-//             res.write(`data: ${content}\n\n`);
-//           }
-//         } catch (e) {
-//           console.error("Failed to parse OpenAI stream", e);
-//         }
-//       }
-//     }
-//   }
-// });
-
 const NEWS_API_KEY = '7e260eb6cf7f4349bf2d75f802860ce1';
 
 app.post('/api/company-news', async (req, res) => {

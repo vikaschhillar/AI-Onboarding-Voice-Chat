@@ -24,6 +24,30 @@ app.post('/api/validate-industry', (req, res) => {
   });
 });
 
+
+app.post('/api/company-details', async (req, res) => {
+  const { company } = req.body;
+  if (!company) return res.status(400).json({ error: "Company name required" });
+
+  const prompt = `Provide a detailed summary about the company named "${company}". Include industry, history, and key facts.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const companySummary = completion.choices[0].message.content || "No details available.";
+
+    res.json({
+      companySummary,
+    });
+  } catch (err) {
+    console.error('OpenAI company summary failed:', err);
+    res.status(500).json({ error: "Failed to generate company summary" });
+  }
+});
+
 app.get('/api/ping', (req, res) => {
   res.json({ message: 'pong', timestamp: new Date().toISOString() });
 });
@@ -41,6 +65,7 @@ app.post('/api/report', async (req, res) => {
     idealOutput,
     industryConfirmed,
     companyOverview,
+    companySummary,
     transcript,
   } = req.body;
 
@@ -52,6 +77,7 @@ app.post('/api/report', async (req, res) => {
     industryConfirmed,
     idealOutput,
     companyOverview,
+    companySummary
   };
 
   const prompt = `You are generating a professional onboarding summary for a voice interview.
@@ -97,5 +123,6 @@ Generate a clear and concise summary for internal documentation or a client repo
 
   res.json({ message: 'Report saved', report: { ...report, llmSummary } });
 });
+
 
 app.listen(4567, () => console.log('Mock API running on port 4567'));

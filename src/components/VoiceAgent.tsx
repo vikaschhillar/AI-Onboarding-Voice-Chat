@@ -91,38 +91,84 @@ export const VoiceAgent: React.FC = () => {
     }
   };
 
+  const vagueAnswers = [
+    "i don't know",
+    "not sure",
+    "maybe",
+    "i guess",
+    "no idea",
+    "don't know",
+    "nothing",
+    "none",
+    "no",
+    "n/a",
+  ];
+  
+  const isAnswerVague = (answer: string): boolean => {
+    const trimmed = answer.trim().toLowerCase();
+    if (trimmed.length < 3) return true; // too short
+    if (vagueAnswers.includes(trimmed)) return true;
+    return false;
+  };
+  
+
   const handleUserAnswer = async (answer: string, currentIndex: number) => {
     if (currentIndex < 0 || currentIndex >= prompts.length) return;
-
+  
+    if (isAnswerVague(answer)) {
+      // Speak a clarifying prompt and restart recognition for the same question
+      const clarification = "Could you please provide more details?";
+      setTranscript(prev => [...prev, "Agent: " + clarification]);
+      await speak(clarification);
+      startRecognition();
+      return; // don't progress index
+    }
+  
     setAnswers(prev => {
       const updated = { ...prev, [prompts[currentIndex]]: answer };
       answersRef.current = updated;
       return updated;
     });
-
-    // Trigger backend company validation only for the first question
+  
+    // Your existing logic continues here...
     if (currentIndex === 0) {
-      try {
-        const response = await fetch("http://localhost:4567/api/validate-industry", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ company: answer }),
-        });
-        const data = await response.json();
-        setAnswers(prev => {
-          const updated = {
-            ...prev,
-            "Industry Confirmed": data.industryMatch ? "Yes" : "No",
-            "Company Overview": data.companyOverview,
-          };
-          answersRef.current = updated;
-          return updated;
-        });
-      } catch (e) {
-        console.error("Industry validation failed", e);
+      // validation logic...
+      if (currentIndex === 0) {
+        try {
+          // Existing industry validation call
+          const response = await fetch("http://localhost:4567/api/validate-industry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ company: answer }),
+          });
+          const data = await response.json();
+      
+          // Also get detailed company summary
+          const detailsResponse = await fetch("http://localhost:4567/api/company-details", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ company: answer }),
+          });
+          const detailsData = await detailsResponse.json();
+      
+          setAnswers(prev => {
+            const updated = {
+              ...prev,
+              "Industry_Confirmed": data.industryMatch ? "Yes" : "No",
+              "Company_Overview": data.companyOverview,
+              "Company_Summary": detailsData.companySummary || "No detailed summary available.",
+            };
+            answersRef.current = updated;
+            return updated;
+          });
+        } catch (e) {
+          console.error("Company validation or details fetch failed", e);
+        }
       }
+      
     }
-
+  
+    // Advance to next question
     const nextIndex = currentIndex + 1;
     if (nextIndex < prompts.length) {
       setIndex(nextIndex);
@@ -130,6 +176,7 @@ export const VoiceAgent: React.FC = () => {
       await speak(prompts[nextIndex]);
       startRecognition();
     } else {
+      // End of questions - finalize
       setTimeout(() => {
         setIndex(-1);
         setCurrentPrompt("");
@@ -138,6 +185,7 @@ export const VoiceAgent: React.FC = () => {
       }, 100);
     }
   };
+  
 
   const confirmAndGenerateReport = async () => {
     const confirmed = window.confirm("Do you want to submit the info?");
@@ -147,6 +195,8 @@ export const VoiceAgent: React.FC = () => {
   const saveToFile = async () => {
     const answers = answersRef.current;
     const transcript = transcriptRef.current.join("\n");
+
+    console.log({answers})
   
     const payload = {
       userName: answers["User Name"] || "Unknown User",
@@ -155,7 +205,10 @@ export const VoiceAgent: React.FC = () => {
       objective: answers["What are you hoping to achieve with your research?"] || "",
       idealOutput: answers["What would the ideal output look like for you? eg) powerpoint"] || "",
       industryConfirmed: answers["Industry Confirmed"] || "No",
-      companyOverview: answers["Company Overview"] || "",
+      companyOverview: answers["Company Overview"] || "",  
+      companySummary: answers["Company_Summary"] || "Something went wrong",
+
+
       transcript,
     };
   

@@ -99,3 +99,6 @@ implemented in this project, here is an outline:
 - **Streaming AI Responses: Provide real-time streaming of AI-generated replies for a more dynamic user experience.
 
 - **These tools influenced an iterative, modular approach to development, enabling rapid prototyping and testing.
+
+
+![AI Agent Conversation Flow](images/AIAgent.png)

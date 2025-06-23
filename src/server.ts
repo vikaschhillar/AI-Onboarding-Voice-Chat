@@ -49,7 +49,7 @@ app.post('/api/company-news', async (req, res) => {
 
 app.post('/api/validate-industry', (req, res) => {
   const { company } = req.body;
-  const foodCompanies = ['Nestle', 'PepsiCo', 'Coca-Cola', 'ABCD'];
+  const foodCompanies = ['Nestle', 'PepsiCo', 'Coca-Cola', 'ABB'];
   const match = foodCompanies.includes(company);
   res.json({
     industryMatch: match,
@@ -79,10 +79,6 @@ app.post('/api/company-details', async (req, res) => {
     console.error('OpenAI company summary failed:', err);
     res.status(500).json({ error: "Failed to generate company summary" });
   }
-});
-
-app.get('/api/ping', (req, res) => {
-  res.json({ message: 'pong', timestamp: new Date().toISOString() });
 });
 
 // Properly setup __dirname in ES module
@@ -161,3 +157,12 @@ Generate a clear and concise summary for internal documentation or a client repo
 
 
 app.listen(4567, () => console.log('Mock API running on port 4567'));
+
+
+// Export the app instance for testing
+export default app;
+
+// Only start the server if this is NOT a test run
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(4567, () => console.log('Mock API running on port 4567'));
+}

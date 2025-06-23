@@ -42,6 +42,7 @@ The voice agent engages users through voice input, asking key onboarding questio
 - Filesystem for transcript and report storage
 
 ## Setup & Running
+add .env file with OPENAI_API_KEY and NEWS_API
 
 
 ### Advanced Agentic Capabilities (Highly Optional)

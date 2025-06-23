@@ -14,6 +14,39 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const NEWS_API_KEY = '7e260eb6cf7f4349bf2d75f802860ce1';
+
+app.post('/api/company-news', async (req, res) => {
+  const { company } = req.body;
+  if (!company) return res.status(400).json({ error: 'Company name required' });
+
+  try {
+    const response = await fetch(
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(company)}&apiKey=${NEWS_API_KEY}`
+    );
+    const newsData = await response.json();
+    console.log(newsData)
+
+    if (newsData.status !== 'ok') {
+      return res.status(500).json({ error: 'Failed to fetch news' });
+    }
+
+    const articles = newsData.articles.slice(0, 3).map(({ title, url, source, publishedAt }) => ({
+      title,
+      url,
+      source: source.name,
+      publishedAt,
+    }));
+
+    res.json({ articles });
+  } catch (error) {
+    console.error('News fetch error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+
 app.post('/api/validate-industry', (req, res) => {
   const { company } = req.body;
   const foodCompanies = ['Nestle', 'PepsiCo', 'Coca-Cola', 'ABCD'];
@@ -66,6 +99,7 @@ app.post('/api/report', async (req, res) => {
     industryConfirmed,
     companyOverview,
     companySummary,
+    Company_News,
     transcript,
   } = req.body;
 
@@ -77,7 +111,8 @@ app.post('/api/report', async (req, res) => {
     industryConfirmed,
     idealOutput,
     companyOverview,
-    companySummary
+    companySummary,
+    Company_News
   };
 
   const prompt = `You are generating a professional onboarding summary for a voice interview.

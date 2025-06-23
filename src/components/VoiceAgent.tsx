@@ -135,6 +135,18 @@ export const VoiceAgent: React.FC = () => {
       // validation logic...
       if (currentIndex === 0) {
         try {
+            // Fetch news about the company
+            const newsResponse = await fetch("http://localhost:4567/api/company-news", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ company: answer }),
+            });
+            const newsData = await newsResponse.json();
+        
+            setAnswers(prev => ({
+                ...prev,
+                "Company_News": newsData.articles.map(a => `${a.title} (${a.source})`).join("; ") || "No recent news found."
+            }));
           // Existing industry validation call
           const response = await fetch("http://localhost:4567/api/validate-industry", {
             method: "POST",
@@ -207,8 +219,7 @@ export const VoiceAgent: React.FC = () => {
       industryConfirmed: answers["Industry Confirmed"] || "No",
       companyOverview: answers["Company Overview"] || "",  
       companySummary: answers["Company_Summary"] || "Something went wrong",
-
-
+      Company_News: answers["Company_News"],
       transcript,
     };
   
